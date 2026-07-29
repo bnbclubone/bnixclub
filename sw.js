@@ -11,6 +11,7 @@ const POLICY = Object.freeze({
   // Whitelisted deployment prefixes (exact path segment matching)
   CANONICAL_PREFIXES: Object.freeze([
     'https://bnbclubone.github.io/bnix/',
+    'https://bnbclubone.github.io/bnixclub/',
     'https://bnbclubone.github.io/cloud/'
   ]),
   // If you rebuild index.html, regenerate via:
@@ -19,7 +20,7 @@ const POLICY = Object.freeze({
   //   await crypto.subtle.digest('SHA-256', new TextEncoder().encode(htmlText))
   //     .then(b => btoa(String.fromCharCode(...new Uint8Array(b))))
   // Leave empty array to skip HTML hash pinning (only origin enforced).
-  PINNED_HTML_HASHES: Object.freeze(['IWn7qVR0jIyfTK+2WHc2WqsNIv17bwYnS84kyFevR1Q=']),
+  PINNED_HTML_HASHES: Object.freeze(['p+L804yNSrwKF3+PCC0GocYvezXihUhDvTxqIAA9Bzg=']),
   // How often to check for SW updates (seconds)
   UPDATE_CHECK_INTERVAL_SEC: 3600
 });
