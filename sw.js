@@ -1,5 +1,5 @@
 /* ===========================================================
- *  binx / Dual Linkage Engine — Service Worker
+ *  binx / Dual Linkage Engine �?Service Worker
  *  Defense-in-depth supplement to in-page domain binding:
  *   1. Intercepts fetch before any page JS runs.
  *   2. Allows ONLY whitelisted deployment origins + sub-paths.
@@ -12,7 +12,12 @@ const POLICY = Object.freeze({
   CANONICAL_PREFIXES: Object.freeze([
     'https://bnbclubone.github.io/bnix/',
     'https://bnbclubone.github.io/bnixclub/',
-    'https://bnbclubone.github.io/cloud/'
+    'https://bnbclubone.github.io/cloud/',
+    'https://ipfs.io/ipfs/',
+    'https://cloudflare-ipfs.com/ipfs/',
+    'http://127.0.0.1:8080/ipfs/',
+    'https://bnixclub-2ggl8x3v.4everland.app/',
+    'https://bnixclub-vndu.4everland.app/'
   ]),
   // If you rebuild index.html, regenerate via:
   //   $ cat index.html | openssl dgst -sha256 -binary | base64
@@ -20,7 +25,7 @@ const POLICY = Object.freeze({
   //   await crypto.subtle.digest('SHA-256', new TextEncoder().encode(htmlText))
   //     .then(b => btoa(String.fromCharCode(...new Uint8Array(b))))
   // Leave empty array to skip HTML hash pinning (only origin enforced).
-  PINNED_HTML_HASHES: Object.freeze(['p+L804yNSrwKF3+PCC0GocYvezXihUhDvTxqIAA9Bzg=']),
+  PINNED_HTML_HASHES: Object.freeze(['iCDEXmxvMhj1gK8zQSMoNrcCLpSj5sGRqnQdu6eDJXM=']),
   // How often to check for SW updates (seconds)
   UPDATE_CHECK_INTERVAL_SEC: 3600
 });
@@ -49,13 +54,26 @@ function _matchesPrefix(url, prefix) {
   return true;
 }
 
+function _isIpfsGatewayUrl(url) {
+  try {
+    var u = new URL(url);
+    var h = u.hostname.toLowerCase();
+    if (h.indexOf('.ipfs.') !== -1 || h.indexOf('.ipns.') !== -1) return true;
+    var p = u.pathname;
+    if (p.indexOf('/ipfs/') === 0 || p.indexOf('/ipns/') === 0) return true;
+  } catch (_) {}
+  return false;
+}
+
 function _isCanonicalUrl(url) {
   if (!url) return false;
   var prefixes = POLICY.CANONICAL_PREFIXES;
   for (var i = 0; i < prefixes.length; i++) {
     if (_matchesPrefix(url, prefixes[i])) return true;
   }
-  return false;
+  // IPFS gateway mode: allow any gateway serving this content;
+  // authenticity is enforced by index.html verifyCodeHashes().
+  return _isIpfsGatewayUrl(url);
 }
 
 async function _sha256Base64(textOrBytes) {
@@ -70,6 +88,16 @@ async function _sha256Base64(textOrBytes) {
   var bin = '';
   for (var i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
   return btoa(bin);
+}
+
+// Strip Cloudflare edge-injected beacon script (4everland adds this on every
+// response; it must be removed before hashing so the pin stays stable).
+function _stripEdgeInjections(html) {
+  return html
+    // <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/..." ...></script>
+    .replace(/<script\b[^>]*static\.cloudflareinsights\.com\/beacon\.min\.js[^>]*><\/script>\r?\n?/gi, '')
+    // any other cloudflareinsights script tag
+    .replace(/<script\b[^>]*cloudflareinsights[^>]*><\/script>\r?\n?/gi, '');
 }
 
 // ---------- Install / Activate: take control immediately ----------
@@ -135,6 +163,8 @@ self.addEventListener('fetch', function (ev) {
       if (!resp.ok) return resp;
       var clone = resp.clone();
       var txt = await clone.text();
+      // Normalize edge injections (Cloudflare beacon) before hashing
+      txt = _stripEdgeInjections(txt);
       var h = await _sha256Base64(txt);
       if (POLICY.PINNED_HTML_HASHES.indexOf(h) === -1) {
         return new Response(
@@ -142,7 +172,7 @@ self.addEventListener('fetch', function (ev) {
           '<body style="padding:40px;color:#b00;font:16px/1.6 sans-serif;text-align:center">' +
           '<b>HTML INTEGRITY CHECK FAILED</b><br><br>' +
           'The served main page does not match the pinned hash.<br>' +
-          'Possible MITM / server tamper — do not proceed.<br><br>' +
+          'Possible MITM / server tamper �?do not proceed.<br><br>' +
           'Got hash: <code>' + h + '</code>' +
           '</body></html>',
           { status: 403, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
