@@ -1,5 +1,5 @@
 /* ===========================================================
- *  binx / Dual Linkage Engine — Service Worker
+ *  binx / Dual Linkage Engine �?Service Worker
  *  Defense-in-depth supplement to in-page domain binding:
  *   1. Intercepts fetch before any page JS runs.
  *   2. Allows ONLY whitelisted deployment origins + sub-paths.
@@ -20,9 +20,9 @@ const POLICY = Object.freeze({
   //   await crypto.subtle.digest('SHA-256', new TextEncoder().encode(htmlText))
   //     .then(b => btoa(String.fromCharCode(...new Uint8Array(b))))
   // Leave empty array to skip HTML hash pinning (only origin enforced).
-  PINNED_HTML_HASHES: Object.freeze(['YzknGJbr1kaxCfdnx+E2GbepvD6jeVbvcN3+QJ/l3OY=']),
+  PINNED_HTML_HASHES: Object.freeze(['UDkXdAF1QTh8WYsVNgTmldLnBZLWsm0tmk2hkendH2A=']),
   // How often to check for SW updates (seconds)
-  UPDATE_CHECK_INTERVAL_SEC: 3600
+  UPDATE_CHECK_INTERVAL_SEC: 20
 });
 
 // ---------- Helpers (ES5, no import, no top-level await) ----------
@@ -70,6 +70,16 @@ async function _sha256Base64(textOrBytes) {
   var bin = '';
   for (var i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
   return btoa(bin);
+}
+
+// Strip Cloudflare edge-injected beacon script (4everland adds this on every
+// response; it must be removed before hashing so the pin stays stable).
+function _stripEdgeInjections(html) {
+  return html
+    // <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/..." ...></script>
+    .replace(/<script\b[^>]*static\.cloudflareinsights\.com\/beacon\.min\.js[^>]*><\/script>\r?\n?/gi, '')
+    // any other cloudflareinsights script tag
+    .replace(/<script\b[^>]*cloudflareinsights[^>]*><\/script>\r?\n?/gi, '');
 }
 
 // ---------- Install / Activate: take control immediately ----------
@@ -135,10 +145,8 @@ self.addEventListener('fetch', function (ev) {
       if (!resp.ok) return resp;
       var clone = resp.clone();
       var txt = await clone.text();
-      // Exclude the sw-hash meta: its value pins THIS service worker and would
-      // otherwise feed back into index.html's own pinned hash (self-referential
-      // loop). It is normalized to a fixed placeholder before hashing.
-      txt = txt.replace(/<meta name="sw-hash"[^>]*>/gi, '<meta name="sw-hash" content="PENDING">');
+      // Normalize edge injections (Cloudflare beacon) before hashing
+      txt = _stripEdgeInjections(txt);
       var h = await _sha256Base64(txt);
       if (POLICY.PINNED_HTML_HASHES.indexOf(h) === -1) {
         return new Response(
@@ -146,7 +154,7 @@ self.addEventListener('fetch', function (ev) {
           '<body style="padding:40px;color:#b00;font:16px/1.6 sans-serif;text-align:center">' +
           '<b>HTML INTEGRITY CHECK FAILED</b><br><br>' +
           'The served main page does not match the pinned hash.<br>' +
-          'Possible MITM / server tamper — do not proceed.<br><br>' +
+          'Possible MITM / server tamper �?do not proceed.<br><br>' +
           'Got hash: <code>' + h + '</code>' +
           '</body></html>',
           { status: 403, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
